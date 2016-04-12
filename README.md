@@ -1,7 +1,7 @@
 # loggerclones
 The nix logger command reimplemented in portable scripting languages without any legacy 1024-byte message-size restriction.
 
-## [Python](https://github.com/ryran/loggerclones/logger.py)
+## [Python](https://github.com/ryran/loggerclones/blob/master/logger.py)
 Uses Python's standard [logging](https://docs.python.org/2/library/logging.html) module
 
 ##### Tested on
@@ -34,7 +34,7 @@ logger.py v0.2.1 last mod 2016/04/12; For issues & questions, see:
 https://github.com/ryran/loggerclones/issues
 ```
 
-## [Perl](https://github.com/ryran/loggerclones/logger.pl)
+## [Perl](https://github.com/ryran/loggerclones/blob/master/logger.pl)
 Uses Perl's standard [Sys::Syslog](http://perldoc.perl.org/Sys/Syslog.html) module
 
 ##### Tested on
