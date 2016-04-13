@@ -21,15 +21,15 @@ from __future__ import print_function
 import argparse, logging, logging.handlers
 from socket import SOCK_DGRAM, SOCK_STREAM
 from sys import exit, stdin, stderr
-from os import getuid
+from os import getuid, getppid
 from pwd import getpwuid
 
 # Set some globals
 prog = 'logger.py'
-versionNumber = '0.2.1'
-versionDate = '2016/04/12'
-description = "A simplistic python logger clone that reads input via stdin"
-epilog = "{} v{} last mod {};".format(prog, versionNumber, versionDate)
+versionNumber = '0.3.0'
+versionDate = '2016/04/13'
+description = "A python logger clone that reads input from stdin, cmdline, or files"
+epilog = "{0} v{1} last mod {2};".format(prog, versionNumber, versionDate)
 epilog += "\nFor issues & questions, see: https://github.com/ryran/loggerclones/issues"
 user = getpwuid(getuid()).pw_name
 
@@ -94,13 +94,19 @@ def parse_cmdline():
         formatter_class=fmt)
     p.add_argument('-p', '--priority', metavar='PRIO', dest='priostring', default='user.info', help="specify priority for given message")
     p.add_argument('-t', '--tag', default=user, help="add tag to given message")
-    p.add_argument('-i', '--id', action='store_true', help="add process ID to tag")
+    g0 = p.add_mutually_exclusive_group()
+    g0.add_argument('-i', '--pid', action='store_true', help="append {0} PID to tag".format(prog))
+    g0.add_argument('--id', nargs='?', const='', help="append arbitrary ID to tag or if no ID specified, use PID")
+    g0.add_argument('--ppid', action='store_true', help="append {0} parent PID to tag".format(prog))
     g1 = p.add_mutually_exclusive_group()
     g1.add_argument('-u', '--socket', default='/dev/log', help="write to local UNIX socket")
     g1.add_argument('-d', '--udp', action='store_true', help="log via UDP instead of UNIX socket")
     g1.add_argument('-T', '--tcp', action='store_true', help="log via TCP instead of UNIX socket")
     p.add_argument('-n', '--server', default='localhost', help="DNS/IP of syslog server to use with --udp or --tcp")
     p.add_argument('-P', '--port', type=int, default=514, help="port to use with --udp or --tcp")
+    p.add_argument('-f', '--file', type=argparse.FileType('r'), help="log each line of FILE as a separate message instead of reading stdin or specifying MESSAGE on cmdline")
+    p.add_argument('-e', '--skip-empty', action='store_true', help="ignore empty lines when using --file")
+    p.add_argument('message', metavar='MESSAGE', nargs='*', help="log single MESSAGE and quit instead of reading stdin")
     opts =  p.parse_args()
     try:
         opts.facility = opts.priostring.split('.')[0]
@@ -109,9 +115,11 @@ def parse_cmdline():
         logging.handlers.SysLogHandler.priority_names[opts.priority]
         opts.level = syslogPriorityToLoggerLevel[opts.priority]
     except:
-        print("Improper 'priority' specified")
-        print("Must be <facility>.<priority> as described in logger(1) man page\n")
+        print("{0}: [ERROR] Improper 'priority' specified".format(prog), file=stderr)
+        print("{0}: Must be <facility>.<priority> as described in logger(1) man page\n".format(prog), file=stderr)
         raise
+    if opts.file and opts.message:
+        print("{0}: [WARNING] --file <FILE> and <MESSAGE> are mutually-exclusive; ignoring <MESSAGE>".format(prog), file=stderr)
     return opts
 
 def main():
@@ -125,17 +133,30 @@ def main():
     else:
         myHandler = logging.handlers.SysLogHandler(address=opts.socket, facility=opts.facility)
     myHandler.priority_map = loggerSyslogHandlerPriorityMap
-    if opts.id:
-        myFormatter = logging.Formatter('%(name)s[%(process)s]: %(message)s')
+    if opts.pid or opts.id is not None:
+        if opts.id:
+            myFormatter = logging.Formatter('%(name)s[{0}]: %(message)s'.format(opts.id))
+        else:
+            myFormatter = logging.Formatter('%(name)s[%(process)s]: %(message)s')
+    elif opts.ppid:
+        myFormatter = logging.Formatter('%(name)s[{0}]: %(message)s'.format(getppid()))
     else:
         myFormatter = logging.Formatter('%(name)s: %(message)s')
     myHandler.setFormatter(myFormatter)
     myLogger.addHandler(myHandler)
-    while 1:
-        line = stdin.readline()
-        if not line:
-            break
-        myLogger.log(opts.level, line)
+    if opts.file:
+        for line in opts.file:
+            if opts.skip_empty and not line.strip():
+                continue
+            myLogger.log(opts.level, line)
+    elif opts.message:
+        myLogger.log(opts.level, " ".join(opts.message))
+    else:
+        while 1:
+            line = stdin.readline()
+            if not line:
+                break
+            myLogger.log(opts.level, line)
 
 if __name__ == '__main__':
     try:
