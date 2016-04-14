@@ -26,8 +26,8 @@ from pwd import getpwuid
 
 # Set some globals
 prog = 'logger.py'
-versionNumber = '0.3.0'
-versionDate = '2016/04/13'
+versionNumber = '0.3.1'
+versionDate = '2016/04/14'
 description = "A python logger clone that reads input from stdin, cmdline, or files"
 epilog = "{0} v{1} last mod {2};".format(prog, versionNumber, versionDate)
 epilog += "\nFor issues & questions, see: https://github.com/ryran/loggerclones/issues"
@@ -86,6 +86,7 @@ class CustomFormatter(argparse.ArgumentDefaultsHelpFormatter):
 
 def parse_cmdline():
     fmt = lambda prog: CustomFormatter(prog)
+    # Instantiate ArgumentParser
     p = argparse.ArgumentParser(
         prog=prog,
         description=description,
@@ -94,10 +95,13 @@ def parse_cmdline():
         formatter_class=fmt)
     p.add_argument('-p', '--priority', metavar='PRIO', dest='priostring', default='user.info', help="specify priority for given message")
     p.add_argument('-t', '--tag', default=user, help="add tag to given message")
+    # Only one of the ID options can be used
     g0 = p.add_mutually_exclusive_group()
     g0.add_argument('-i', '--pid', action='store_true', help="append {0} PID to tag".format(prog))
+    # The --id option has an optional argument
     g0.add_argument('--id', nargs='?', const='', help="append arbitrary ID to tag or if no ID specified, use PID")
     g0.add_argument('--ppid', action='store_true', help="append {0} parent PID to tag".format(prog))
+    # Only one of --socket/--udp/--tcp can be used
     g1 = p.add_mutually_exclusive_group()
     g1.add_argument('-u', '--socket', default='/dev/log', help="write to local UNIX socket")
     g1.add_argument('-d', '--udp', action='store_true', help="log via UDP instead of UNIX socket")
@@ -106,8 +110,10 @@ def parse_cmdline():
     p.add_argument('-P', '--port', type=int, default=514, help="port to use with --udp or --tcp")
     p.add_argument('-f', '--file', type=argparse.FileType('r'), help="log each line of FILE as a separate message instead of reading stdin or specifying MESSAGE on cmdline")
     p.add_argument('-e', '--skip-empty', action='store_true', help="ignore empty lines when using --file")
+    # Slurp all remaining arguments into MESSAGE, just like logger does
     p.add_argument('message', metavar='MESSAGE', nargs='*', help="log single MESSAGE and quit instead of reading stdin")
     opts =  p.parse_args()
+    # If facility.priority isn't specified or if either doesn't exist, throw fatal error
     try:
         opts.facility = opts.priostring.split('.')[0]
         logging.handlers.SysLogHandler.facility_names[opts.facility]
@@ -118,40 +124,57 @@ def parse_cmdline():
         print("{0}: [ERROR] Improper 'priority' specified".format(prog), file=stderr)
         print("{0}: Must be <facility>.<priority> as described in logger(1) man page\n".format(prog), file=stderr)
         raise
+    # Print warning if both --file & cmdline message specified
     if opts.file and opts.message:
         print("{0}: [WARNING] --file <FILE> and <MESSAGE> are mutually-exclusive; ignoring <MESSAGE>".format(prog), file=stderr)
     return opts
 
 def main():
+    # Parse cmdline into opts namespace
     opts = parse_cmdline()
+    # Might as well name logger based on tag
     myLogger = logging.getLogger(opts.tag)
+    # Set threshold as low as possible
     myLogger.setLevel(logging.DEBUG)
+    # Instantiate handler as udp or tcp or plain local syslog
     if opts.udp:
         myHandler = logging.handlers.SysLogHandler(address=(opts.server, opts.port), facility=opts.facility, socktype=SOCK_DGRAM)
     elif opts.tcp:
         myHandler = logging.handlers.SysLogHandler(address=(opts.server, opts.port), facility=opts.facility, socktype=SOCK_STREAM)
     else:
         myHandler = logging.handlers.SysLogHandler(address=opts.socket, facility=opts.facility)
+    # Use custom priority_map
     myHandler.priority_map = loggerSyslogHandlerPriorityMap
+    # Determine whether to print [ID] after tag
     if opts.pid or opts.id is not None:
         if opts.id:
+            # Print TAG[CUSTOM_ID] (passed via --id=xxx)
             myFormatter = logging.Formatter('%(name)s[{0}]: %(message)s'.format(opts.id))
         else:
+            # Print TAG[PID] (due to -i or --id)
             myFormatter = logging.Formatter('%(name)s[%(process)s]: %(message)s')
     elif opts.ppid:
+        # Print TAG[PPID] (due to --ppid)
         myFormatter = logging.Formatter('%(name)s[{0}]: %(message)s'.format(getppid()))
     else:
+        # Print just TAG
         myFormatter = logging.Formatter('%(name)s: %(message)s')
+    # Add formatter to handler
     myHandler.setFormatter(myFormatter)
+    # Add handler to logger
     myLogger.addHandler(myHandler)
+    # What to log ...
     if opts.file:
+        # If passed a file, log each line from file
         for line in opts.file:
             if opts.skip_empty and not line.strip():
                 continue
             myLogger.log(opts.level, line)
     elif opts.message:
+        # If passed a message on the cmdline, log that instead
         myLogger.log(opts.level, " ".join(opts.message))
     else:
+        # Otherwise, log each line of stdin until receive EOF (Ctrl-d)
         while 1:
             line = stdin.readline()
             if not line:
