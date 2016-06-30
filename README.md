@@ -7,7 +7,7 @@ The nix logger command reimplemented in portable scripting languages without any
   - Has no 1024-byte message-size restriction (no message splitting performed)
   - Supports new `--ppid` option to append *parent* process id to tag
   - Does not support `--stderr` option
-- Similarities with modern `logger` command:
+- Similarities with modern (Fedora util-linux) `logger` command:
   - Accepts log message as command-line arguments
   - Accepts log messages via stdin
   - Accepts log messages by reading file passed to `-f` / `--file`
@@ -67,7 +67,7 @@ https://github.com/ryran/loggerclones/issues
   - Does not accept log message as command-line arguments
   - Does not support passing file via `-f` / `--file`
   - Does not support adding custom (arbitrary) ID to tag
-- Similarities with modern `logger` command:
+- Similarities with modern (Fedora util-linux) `logger` command:
   - Accepts log messages via stdin
   - Single-letter opts and full-word opts are completely compatible
   - Supports specifying custom facility.priority
