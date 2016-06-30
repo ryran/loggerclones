@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 #
 # Copyright 2016 Ryan Sawhill Aroha rsaw@redhat.com
-# See https://github.com/ryran/b19scripts/ for latest version
+# See https://github.com/ryran/loggerclones for latest version
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
